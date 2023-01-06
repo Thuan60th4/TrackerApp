@@ -1,14 +1,24 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
+import ErrorOverlay from "../components/ErrorOverlay/ErrorOverlay";
+import LoadingOverlay from "../components/LoadingOverlay/LoadingOverlay";
 import ExpressForm from "../components/ManageForm/ExpressForm";
 import IconButton from "../components/UI/IconButton";
 import { GlobalStyles } from "../constans/styles";
+import {
+  addExpenseFirebase,
+  deleteExpenseFirebase,
+  updateExpenseFirebase,
+} from "../http";
 import { addExpense, updateExpense, deleteExpense } from "../store/expenses";
 
 function ManageExpenses({ route, navigation }) {
   const expenseId = route.params?.expenseId;
   const listExpenses = useSelector((state) => state.expenses.expenseState);
+  const [submit, setSubmit] = useState(false);
+  const [occur, setOccur] = useState(false);
+
   const dispatch = useDispatch();
 
   let currentValueUpdate = listExpenses.find(
@@ -26,33 +36,51 @@ function ManageExpenses({ route, navigation }) {
     }
   }, []);
 
-  const handleData = (data) => {
-    if (expenseId) {
-      dispatch(
-        updateExpense({
-          id: expenseId,
-          data,
-        })
-      );
-    } else {
-      dispatch(
-        addExpense({
-          id: Math.random().toString(),
-          ...data,
-        })
-      );
+  const handleData = async (data) => {
+    try {
+      setSubmit(true);
+      if (expenseId) {
+        await updateExpenseFirebase(expenseId, data);
+        dispatch(
+          updateExpense({
+            id: expenseId,
+            data,
+          })
+        );
+      } else {
+        const id = await addExpenseFirebase(data);
+        dispatch(
+          addExpense({
+            id: id.name,
+            ...data,
+          })
+        );
+      }
+      navigation.goBack();
+    } catch (error) {
+      setSubmit(false);
+      setOccur(true);
     }
-    navigation.goBack();
   };
 
-  const handleDelete = () => {
-    dispatch(deleteExpense(expenseId));
-    navigation.goBack();
+  const handleDelete = async () => {
+    try {
+      setSubmit(true);
+      await deleteExpenseFirebase(expenseId);
+      dispatch(deleteExpense(expenseId));
+      navigation.goBack();
+    } catch (error) {
+      setSubmit(false);
+      setOccur(true);
+    }
   };
 
   const cancelHandle = () => {
     navigation.goBack();
   };
+
+  if (submit) return <LoadingOverlay />;
+  if (occur) return <ErrorOverlay />;
   return (
     <View style={styles.container}>
       <ExpressForm
